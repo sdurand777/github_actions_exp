@@ -1,4 +1,3 @@
-
 name: Build Docker Image with Versioning
 
 on:
@@ -16,11 +15,11 @@ jobs:
     steps:
       - name: Checkout repository
         uses: actions/checkout@v3
-        
+
       - name: Get the latest version tag and increment
         id: versioning
         run: |
-          # Fichier pour stocker le compteur de version (peut être un fichier sur ton repo)
+          # Fichier pour stocker le compteur de version
           VERSION_FILE="version.txt"
           
           # Si le fichier version.txt n'existe pas, on le crée et on initialise la version à 1
@@ -42,12 +41,22 @@ jobs:
 
       - name: Commit and push version increment
         run: |
-          # Commit du changement de version pour garder une trace de l'auto-incrémentation
+          # Configurer Git avec les informations nécessaires pour le commit
           git config --local user.email "github-actions[bot]@users.noreply.github.com"
           git config --local user.name "github-actions"
+
+          # Ajouter, committer et pousser les modifications de version.txt
           git add version.txt
           git commit -m "Increment version to ${{ steps.versioning.outputs.docker_tag }}"
-          git push
+          
+          # Configurer l'URL du remote pour utiliser le GITHUB_TOKEN en authentification
+          git remote set-url origin https://x-access-token:${{ secrets.GITHUB_TOKEN }}@github.com/${{ github.repository }}.git
+          
+          # Pousser les modifications avec GITHUB_TOKEN
+          git push origin main
+
+        env:
+          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}  # Utilise le token GitHub pour l'authentification
 
   build:
     runs-on: ubuntu-latest
