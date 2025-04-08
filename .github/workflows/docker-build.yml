@@ -1,4 +1,5 @@
-name: Build Docker Image
+
+name: Build Docker Image with Versioning
 
 on:
   push:
@@ -7,15 +8,60 @@ on:
     branches: [ main ]
 
 jobs:
-  build:
+  versioning:
     runs-on: ubuntu-latest
-    
+    outputs:
+      docker_tag: ${{ steps.versioning.outputs.docker_tag }}
+      
     steps:
       - name: Checkout repository
         uses: actions/checkout@v3
-      
+        
+      - name: Get the latest version tag and increment
+        id: versioning
+        run: |
+          # Fichier pour stocker le compteur de version (peut être un fichier sur ton repo)
+          VERSION_FILE="version.txt"
+          
+          # Si le fichier version.txt n'existe pas, on le crée et on initialise la version à 1
+          if [ ! -f $VERSION_FILE ]; then
+            echo "1" > $VERSION_FILE
+          fi
+          
+          # Lire la version actuelle et l'incrémenter
+          VERSION=$(cat $VERSION_FILE)
+          NEW_VERSION=$((VERSION + 1))
+
+          # Sauvegarder la nouvelle version dans le fichier
+          echo $NEW_VERSION > $VERSION_FILE
+          
+          # Enregistrer le tag version dans un output
+          TAG="v${NEW_VERSION}"
+          echo "New Docker image tag: $TAG"
+          echo "docker_tag=$TAG" >> $GITHUB_OUTPUT
+
+      - name: Commit and push version increment
+        run: |
+          # Commit du changement de version pour garder une trace de l'auto-incrémentation
+          git config --local user.email "github-actions[bot]@users.noreply.github.com"
+          git config --local user.name "github-actions"
+          git add version.txt
+          git commit -m "Increment version to ${{ steps.versioning.outputs.docker_tag }}"
+          git push
+
+  build:
+    runs-on: ubuntu-latest
+    needs: versioning
+    steps:
+      - name: Checkout repository
+        uses: actions/checkout@v3
+
       - name: Build Docker image
-        run: docker build -t mon-app:latest .
-      
+        run: |
+          echo "Building Docker image with tag: ${{ needs.versioning.outputs.docker_tag }}"
+          docker build -t mon-app:latest -t mon-app:${{ needs.versioning.outputs.docker_tag }} .
+
       - name: Test Docker image
-        run: docker run mon-app:latest
+        run: |
+          echo "Testing Docker image with tag: ${{ needs.versioning.outputs.docker_tag }}"
+          docker run mon-app:${{ needs.versioning.outputs.docker_tag }}
